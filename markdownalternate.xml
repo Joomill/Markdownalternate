@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <extension type="plugin" group="system" method="upgrade">
-    <name>Joomill Markdown Alternate</name>
+    <name>System - Joomill Markdown Alternate</name>
     <description>Provides Markdown versions of Joomla articles for LLMs and AI agents.
         Supports .md URL extensions, Accept: text/markdown header, and ?output=markdown parameter.
         Adds a &lt;link rel="alternate" type="text/markdown"&gt; tag for discoverability.</description>
