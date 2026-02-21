@@ -96,24 +96,35 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $view   = $input->getString('view');
         $id     = $input->getInt('id');
 
-        if ($option !== 'com_content' || $view !== 'article' || $id < 1) {
+        if ($option !== 'com_content' || !in_array($view, ['article', 'category']) || $id < 1) {
             return;
         }
 
-        $article = $this->loadArticle($id);
+        if ($view === 'article') {
+            $article = $this->loadArticle($id);
 
-        if (!$article) {
-            return;
+            if (!$article) {
+                return;
+            }
+
+            // Debug mode: ?output=markdown&debug=1
+            if ($input->getInt('debug') === 1) {
+                $this->outputDebugReport($article, $id);
+                $app->close();
+                return;
+            }
+
+            $markdown = $this->buildMarkdownResponse($article);
+        } else {
+            $category = $this->loadCategory($id);
+
+            if (!$category) {
+                return;
+            }
+
+            $markdown = $this->buildCategoryMarkdownResponse($category);
         }
 
-        // Debug mode: ?output=markdown&debug=1
-        if ($input->getInt('debug') === 1) {
-            $this->outputDebugReport($article, $id);
-            $app->close();
-            return;
-        }
-
-        $markdown = $this->buildMarkdownResponse($article);
         $tokens   = (int) (strlen($markdown) / 4);
 
         $uri      = Uri::getInstance();
@@ -147,7 +158,11 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $view   = $input->getString('view');
         $id     = $input->getInt('id');
 
-        if ($option !== 'com_content' || $view !== 'article' || $id < 1) {
+        if ($option !== 'com_content' || !in_array($view, ['article', 'category']) || $id < 1) {
+            return;
+        }
+
+        if (!$this->params->get('show_link', 1)) {
             return;
         }
 
@@ -187,6 +202,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $db->quoteName('a.created'),
                 $db->quoteName('a.images'),
                 $db->quoteName('a.catid'),
+                $db->quoteName('a.metadesc'),
                 // Model returns author as "author", not "author_name"
                 $db->quoteName('u.name',  'author'),
                 $db->quoteName('c.title', 'category_title'),
@@ -216,24 +232,32 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $article->text = ($article->introtext ?? '') . $sep . ($article->fulltext ?? '');
 
         // --- Tags ---
-        $tagQuery = $db->getQuery(true)
-            ->select([$db->quoteName('t.title'), $db->quoteName('t.alias')])
-            ->from($db->quoteName('#__tags', 't'))
-            ->join(
-                'INNER',
-                $db->quoteName('#__contentitem_tag_map', 'map')
-                . ' ON ' . $db->quoteName('map.tag_id') . ' = ' . $db->quoteName('t.id')
-            )
-            ->where($db->quoteName('map.content_item_id') . ' = ' . (int) $id)
-            ->where($db->quoteName('map.type_alias') . ' = ' . $db->quote('com_content.article'));
+        if ($this->params->get('show_tags', 1)) {
+            $tagQuery = $db->getQuery(true)
+                ->select([$db->quoteName('t.title'), $db->quoteName('t.alias')])
+                ->from($db->quoteName('#__tags', 't'))
+                ->join(
+                    'INNER',
+                    $db->quoteName('#__contentitem_tag_map', 'map')
+                    . ' ON ' . $db->quoteName('map.tag_id') . ' = ' . $db->quoteName('t.id')
+                )
+                ->where($db->quoteName('map.content_item_id') . ' = ' . (int) $id)
+                ->where($db->quoteName('map.type_alias') . ' = ' . $db->quote('com_content.article'));
 
-        $db->setQuery($tagQuery);
-        $article->tags = $db->loadObjectList() ?: [];
+            $db->setQuery($tagQuery);
+            $article->tags = $db->loadObjectList() ?: [];
+        } else {
+            $article->tags = [];
+        }
 
         // --- Custom fields ---
         // Read directly from #__fields + #__fields_values.
         // No FieldsHelper, no document dependency, no crashes.
-        $article->custom_fields = $this->loadCustomFieldsFromDb($id);
+        if ($this->params->get('show_fields', 1)) {
+            $article->custom_fields = $this->loadCustomFieldsFromDb($id);
+        } else {
+            $article->custom_fields = [];
+        }
 
         return $article;
     }
@@ -619,6 +643,111 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     }
 
 
+    private function buildCategoryMarkdownResponse(object $category): string
+    {
+        $baseUrl = Uri::root();
+        $title   = html_entity_decode($category->title ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        // ---- YAML Frontmatter ----
+        $fm  = "---\n";
+        $fm .= 'title: "' . addslashes($title) . "\"\n";
+
+        if ($this->params->get('show_description', 1) && !empty($category->metadesc)) {
+            $fm .= 'description: "' . addslashes($category->metadesc) . "\"\n";
+        }
+
+        // Category Image
+        if ($this->params->get('show_images', 1)) {
+            $params = json_decode($category->params ?? '{}', false);
+            if (!empty($params->image)) {
+                $catImage = $this->cleanImageUrl($params->image, $baseUrl);
+                $fm .= 'image: "' . $catImage . "\"\n";
+            }
+        }
+
+        $fm .= "---\n\n";
+
+        // ---- Body ----
+        $body = '# ' . $title . "\n\n";
+
+        if ($this->params->get('show_description', 1) && !empty($category->description)) {
+            $body .= $this->htmlToMarkdown($category->description) . "\n\n";
+        }
+
+        if (!empty($category->articles)) {
+            foreach ($category->articles as $article) {
+                $articleTitle = html_entity_decode($article->title ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $body .= '## ' . $articleTitle . "\n\n";
+
+                // Intro Image
+                if ($this->params->get('show_images', 1)) {
+                    $images = json_decode($article->images ?? '{}', false);
+                    if (!empty($images->image_intro)) {
+                        $introImage = $this->cleanImageUrl($images->image_intro, $baseUrl);
+                        $body .= '![' . addslashes($articleTitle) . '](' . $introImage . ")\n\n";
+                    }
+                }
+
+                // Intro Text
+                if (!empty($article->introtext)) {
+                    $body .= $this->htmlToMarkdown($article->introtext) . "\n\n";
+                }
+
+                // Link to full article
+                $articleUrl = rtrim($baseUrl, '/') . '/' . ($category->alias ?? '') . '/' . ($article->alias ?? '') . '.md';
+                $body .= '[Lees meer...](' . $articleUrl . ")\n\n";
+            }
+        }
+
+        return $fm . $body;
+    }
+
+    private function loadCategory(int $id): ?object
+    {
+        $db = Factory::getDbo();
+
+        // --- Category row ---
+        $query = $db->getQuery(true)
+            ->select([
+                $db->quoteName('id'),
+                $db->quoteName('title'),
+                $db->quoteName('alias'),
+                $db->quoteName('description'),
+                $db->quoteName('metadesc'),
+                $db->quoteName('params'),
+            ])
+            ->from($db->quoteName('#__categories'))
+            ->where($db->quoteName('id')        . ' = ' . (int) $id)
+            ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'))
+            ->where($db->quoteName('published') . ' = 1');
+
+        $db->setQuery($query);
+        $category = $db->loadObject();
+
+        if (!$category) {
+            return null;
+        }
+
+        // --- Articles in category ---
+        $query = $db->getQuery(true)
+            ->select([
+                $db->quoteName('id'),
+                $db->quoteName('title'),
+                $db->quoteName('alias'),
+                $db->quoteName('introtext'),
+                $db->quoteName('images'),
+            ])
+            ->from($db->quoteName('#__content'))
+            ->where($db->quoteName('catid') . ' = ' . (int) $id)
+            ->where($db->quoteName('state') . ' = 1')
+            ->order($db->quoteName('ordering') . ' ASC');
+
+        $db->setQuery($query);
+        $category->articles = $db->loadObjectList() ?: [];
+
+        return $category;
+    }
+
     private function buildMarkdownResponse(object $article): string
     {
         $baseUrl  = Uri::root();
@@ -629,27 +758,36 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         // ---- YAML Frontmatter ----
         $fm  = "---\n";
         $fm .= 'title: "' . addslashes($title) . "\"\n";
-        $fm .= 'date: '   . date('Y-m-d', strtotime($article->created)) . "\n";
 
-        if ($author !== '') {
+        if ($this->params->get('show_date', 1)) {
+            $fm .= 'date: ' . date('Y-m-d', strtotime($article->created)) . "\n";
+        }
+
+        if ($this->params->get('show_description', 1) && !empty($article->metadesc)) {
+            $fm .= 'description: "' . addslashes($article->metadesc) . "\"\n";
+        }
+
+        if ($this->params->get('show_author', 1) && $author !== '') {
             $fm .= 'author: "' . addslashes($author) . "\"\n";
         }
 
         // Images.
-        $images = json_decode($article->images ?? '{}', false);
+        if ($this->params->get('show_images', 1)) {
+            $images = json_decode($article->images ?? '{}', false);
 
-        if (!empty($images->image_intro)) {
-            $introImage = $this->cleanImageUrl($images->image_intro, $baseUrl);
-            $fm .= 'intro_image: "' . $introImage . "\"\n";
-        }
+            if (!empty($images->image_intro)) {
+                $introImage = $this->cleanImageUrl($images->image_intro, $baseUrl);
+                $fm .= 'intro_image: "' . $introImage . "\"\n";
+            }
 
-        if (!empty($images->image_fulltext)) {
-            $fulltextImage = $this->cleanImageUrl($images->image_fulltext, $baseUrl);
-            $fm .= 'fulltext_image: "' . $fulltextImage . "\"\n";
+            if (!empty($images->image_fulltext)) {
+                $fulltextImage = $this->cleanImageUrl($images->image_fulltext, $baseUrl);
+                $fm .= 'fulltext_image: "' . $fulltextImage . "\"\n";
+            }
         }
 
         // Category.
-        if ($catTitle !== '') {
+        if ($this->params->get('show_category', 1) && $catTitle !== '') {
             $catUrl = rtrim($baseUrl, '/') . '/' . ($article->category_alias ?? '') . '.md';
             $fm .= "categories:\n";
             $fm .= '  - name: "' . addslashes($catTitle) . "\"\n";
@@ -657,7 +795,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         }
 
         // Tags.
-        if (!empty($article->tags)) {
+        if ($this->params->get('show_tags', 1) && !empty($article->tags)) {
             $fm .= "tags:\n";
             foreach ($article->tags as $tag) {
                 $tagTitle = html_entity_decode($tag->title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -673,7 +811,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $body = '# ' . $title . "\n\n" . $this->htmlToMarkdown($article->text ?? '');
 
         // Custom fields as readable section at the end.
-        if (!empty($article->custom_fields)) {
+        if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
             $body .= "\n\n## Custom Fields\n\n";
             foreach ($article->custom_fields as $field) {
                 $body .= $this->renderFieldAsMarkdown($field);
