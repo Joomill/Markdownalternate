@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<extension type="plugin" group="system" method="upgrade">
+    <name>Joomill Markdown Alternate</name>
+    <description>Provides Markdown versions of Joomla articles for LLMs and AI agents.
+        Supports .md URL extensions, Accept: text/markdown header, and ?output=markdown parameter.
+        Adds a &lt;link rel="alternate" type="text/markdown"&gt; tag for discoverability.</description>
+    <author>Jeroen Moolenschot | Joomill</author>
+    <authorEmail>info@joomill-extensions.com</authorEmail>
+    <authorUrl>https://www.joomill-extensions.com</authorUrl>
+    <license>GNU General Public License version 3 or later</license>
+    <creationDate>February 2026</creationDate>
+    <copyright>Copyright (c) 2026 Joomill Extensions. All rights reserved.</copyright>
+    <version>1.0.0</version>
+    <namespace path="src">Joomill\Plugin\System\Markdownalternate</namespace>
+
+    <!-- Files -->
+    <files>
+        <folder plugin="markdownalternate">services</folder>
+        <folder>src</folder>
+        <filename>markdownalternate.xml</filename>
+    </files>
+
+    <!-- Config / Params -->
+    <config>
+    </config>
+
+    <!-- Changelog -->
+    <changelogurl>
+        <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=changelog&amp;format=xml&amp;cat=33]]></changelogurl>
+
+    <!-- Updateserver -->
+    <updateservers>
+        <server type="extension" priority="1" name="Joomill Markdown Alternate plugin">
+            <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=updater&amp;format=xml&amp;cat=33]]></server>
+    </updateservers>
+</extension>
