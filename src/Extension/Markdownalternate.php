@@ -379,7 +379,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $path = strip_tags($rawvalue);
             }
 
-            return $this->cleanImageUrl($path, Uri::root());
+            return $this->cleanImageUrl($path, $this->getAbsoluteBaseUrl());
         }
 
         // --- Subform: render rows using real child field labels ---
@@ -452,7 +452,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 if (is_array($value) && isset($value['imagefile'])) {
                     $src   = $value['imagefile'];
                     $alt   = $value['alt_text'] ?? '';
-                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, Uri::root()) . ')';
+                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, $this->getAbsoluteBaseUrl()) . ')';
                 } elseif (trim((string) $value) === 'Array' || (is_array($value) && empty($value))) {
                     // Skip literally "Array" string values or empty arrays.
                     continue;
@@ -588,7 +588,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 if (is_array($value) && isset($value['imagefile'])) {
                     $src   = $value['imagefile'];
                     $alt   = $value['alt_text'] ?? '';
-                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, Uri::root()) . ')';
+                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, $this->getAbsoluteBaseUrl()) . ')';
                 } elseif (trim((string) ($value ?? '')) === 'Array' || (is_array($value) && empty($value))) {
                     // Skip literally "Array" string values or empty arrays.
                     continue;
@@ -644,7 +644,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
     private function buildCategoryMarkdownResponse(object $category): string
     {
-        $baseUrl = Uri::root();
+        $baseUrl = $this->getAbsoluteBaseUrl();
         $title   = html_entity_decode($category->title ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
         // ---- YAML Frontmatter ----
@@ -749,7 +749,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
     private function buildMarkdownResponse(object $article): string
     {
-        $baseUrl  = Uri::root();
+        $baseUrl  = $this->getAbsoluteBaseUrl();
         $title    = html_entity_decode($article->title    ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $author   = html_entity_decode($article->author   ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $catTitle = html_entity_decode($article->category_title ?? '', ENT_QUOTES | ENT_HTML5, 'UTF-8');
@@ -918,12 +918,39 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // YAML scalar helper
     // -----------------------------------------------------------------------
 
+    private function getAbsoluteBaseUrl(): string
+    {
+        $uri    = Uri::getInstance();
+        $scheme = $uri->getScheme();
+        $host   = $uri->getHost();
+
+        if ($scheme && $host) {
+            $port = $uri->getPort();
+            $port = $port ? ':' . $port : '';
+
+            return $scheme . '://' . $host . $port . Uri::root(true);
+        }
+
+        // Fallback to Uri::root(false) which should be absolute in web context.
+        $root = Uri::root(false);
+
+        if (strpos($root, 'http') === 0) {
+            return $root;
+        }
+
+        // Final fallback for environments where Uri::root() might be relative.
+        $scheme = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
+        $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
+
+        return $scheme . '://' . $host . Uri::root(true);
+    }
+
     /**
      * Clean an image path:
      *  - Make relative paths absolute.
      *  - Strip everything from '#' onward (e.g. '#joomlaImage://…').
      */
-    private function cleanImageUrl(string $path, string $baseUrl): string
+    private function cleanImageUrl(string $path, string $baseUrl = ''): string
     {
         // Strip the #joomlaImage:// fragment and anything after it.
         if (($pos = strpos($path, '#')) !== false) {
@@ -933,7 +960,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $path = trim($path);
 
         // Make relative paths absolute.
-        if ($path !== '' && substr($path, 0, 4) !== 'http') {
+        if ($path !== '' && substr($path, 0, 4) !== 'http' && substr($path, 0, 2) !== '//') {
+            if ($baseUrl === '') {
+                $baseUrl = $this->getAbsoluteBaseUrl();
+            }
             $path = rtrim($baseUrl, '/') . '/' . ltrim($path, '/');
         }
 
@@ -1051,17 +1081,29 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             case 'a':
                 $href = $node->getAttribute('href');
                 $text = trim($children);
-                if ($href === '') return $text;
-                if ($text === '') $text = $href;
+                if ($href === '') {
+                    return $text;
+                }
+                if ($text === '') {
+                    $text = $href;
+                }
+
+                // Make relative links absolute.
+                if (substr($href, 0, 4) !== 'http' && substr($href, 0, 2) !== '//' && substr($href, 0, 1) !== '#' && substr($href, 0, 7) !== 'mailto:') {
+                    $href = rtrim($this->getAbsoluteBaseUrl(), '/') . '/' . ltrim($href, '/');
+                }
+
                 return '[' . $text . '](' . $href . ')';
 
             case 'img':
                 $src   = $node->getAttribute('src');
                 $alt   = $node->getAttribute('alt');
                 $title = $node->getAttribute('title');
-                $src   = $this->cleanImageUrl($src, Uri::root());
+                $src   = $this->cleanImageUrl($src, $this->getAbsoluteBaseUrl());
                 $md    = '![' . $alt . '](' . $src;
-                if ($title !== '') $md .= ' "' . str_replace('"', '\\"', $title) . '"';
+                if ($title !== '') {
+                    $md .= ' "' . str_replace('"', '\\"', $title) . '"';
+                }
                 return $md . ')';
 
             case 'ul': return "\n" . $this->convertList($node, false) . "\n";
