@@ -374,10 +374,12 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             $decoded = json_decode($rawvalue, true);
 
             if (is_array($decoded)) {
-                return $decoded['url'] ?? $decoded['imagefile'] ?? '';
+                $path = $decoded['url'] ?? $decoded['imagefile'] ?? '';
+            } else {
+                $path = strip_tags($rawvalue);
             }
 
-            return strip_tags($rawvalue);
+            return $this->cleanImageUrl($path, Uri::root());
         }
 
         // --- Subform: render rows using real child field labels ---
@@ -437,14 +439,6 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         // Look up labels and types for child fields by name.
         $childMeta = $this->loadChildFieldMeta(array_keys($childNames));
 
-        // Determine how many meaningful (non-image) columns exist per row.
-        $meaningfulCols = 0;
-        foreach ($childMeta as $meta) {
-            if (!in_array($meta->type, ['media', 'image'], true)) {
-                $meaningfulCols++;
-            }
-        }
-
         $renderedRows = [];
 
         foreach ($rows as $row) {
@@ -454,30 +448,36 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $meta  = $childMeta[$fieldName] ?? null;
                 $ftype = $meta->type ?? 'text';
 
-                // Skip image/media sub-fields — they produce "Array" or binary noise.
-                if (in_array($ftype, ['media', 'image'], true)) {
+                // Handle media/image fields which are stored as JSON/array.
+                if (is_array($value) && isset($value['imagefile'])) {
+                    $src   = $value['imagefile'];
+                    $alt   = $value['alt_text'] ?? '';
+                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, Uri::root()) . ')';
+                } elseif (trim((string) $value) === 'Array' || (is_array($value) && empty($value))) {
+                    // Skip literally "Array" string values or empty arrays.
                     continue;
+                } else {
+                    // Clean the value (standard text/HTML).
+                    $clean = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $clean = trim($clean);
                 }
-
-                // Skip literally "Array" string values (un-rendered media fields).
-                if (trim((string) $value) === 'Array' || (is_array($value) && empty($value))) {
-                    continue;
-                }
-
-                // Clean the value.
-                $clean = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                $clean = trim($clean);
 
                 if ($clean === '') {
                     continue;
                 }
 
                 // For single-column subforms, just collect values without labels.
-                if ($meaningfulCols <= 1) {
+                if (count($childMeta) <= 1) {
                     $parts[] = $clean;
                 } else {
-                    $label   = $meta ? html_entity_decode($meta->label, ENT_QUOTES | ENT_HTML5, 'UTF-8') : $fieldName;
-                    $parts[] = $label . ': ' . $clean;
+                    $label = $meta ? html_entity_decode($meta->label, ENT_QUOTES | ENT_HTML5, 'UTF-8') : $fieldName;
+
+                    // Skip generic field labels like "field23"
+                    if (preg_match('/^field\d+$/', $label)) {
+                        $parts[] = $clean;
+                    } else {
+                        $parts[] = $label . ': ' . $clean;
+                    }
                 }
             }
 
@@ -533,6 +533,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     private function renderFieldAsMarkdown(object $field): string
     {
         if ($field->type !== 'subform') {
+            if (in_array($field->type, ['media', 'image'], true) && !empty($field->value)) {
+                return '**' . $field->label . ':** ![](' . $field->value . ")\n\n";
+            }
             return '**' . $field->label . ':** ' . $field->value . "\n\n";
         }
 
@@ -568,17 +571,6 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         }
         $childMeta = $this->loadChildFieldMeta(array_keys($childNames));
 
-        // Determine how many distinct meaningful (non-media) columns exist.
-        // Count only columns that actually appear and are not media/image type.
-        $meaningfulColCount = 0;
-        foreach (array_keys($childNames) as $name) {
-            $meta  = isset($childMeta[$name]) ? $childMeta[$name] : null;
-            $ftype = ($meta && isset($meta->type)) ? $meta->type : 'text';
-            if (!in_array($ftype, ['media', 'image'], true)) {
-                $meaningfulColCount++;
-            }
-        }
-
         $out = '**' . $field->label . ":**\n\n";
 
         foreach ($rows as $row) {
@@ -586,35 +578,38 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 continue;
             }
 
-            // Collect all meaningful values from this row, preserving order.
+            // Collect all values from this row, preserving order.
             $colValues = [];
             foreach ($row as $fieldName => $value) {
                 $meta  = isset($childMeta[$fieldName]) ? $childMeta[$fieldName] : null;
                 $ftype = ($meta && isset($meta->type)) ? $meta->type : 'text';
 
-                // Skip media/image sub-fields.
-                if (in_array($ftype, ['media', 'image'], true)) {
+                // Handle media/image fields which are stored as JSON/array.
+                if (is_array($value) && isset($value['imagefile'])) {
+                    $src   = $value['imagefile'];
+                    $alt   = $value['alt_text'] ?? '';
+                    $clean = '![' . $alt . '](' . $this->cleanImageUrl($src, Uri::root()) . ')';
+                } elseif (trim((string) ($value ?? '')) === 'Array' || (is_array($value) && empty($value))) {
+                    // Skip literally "Array" string values or empty arrays.
                     continue;
+                } else {
+                    // Clean the value (standard text/HTML).
+                    $clean = html_entity_decode(strip_tags((string) $value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                    $clean = trim($clean);
                 }
-
-                $str = is_array($value) ? '' : (string) $value;
-
-                // Skip "Array" strings from un-rendered media fields.
-                if (trim($str) === 'Array' || trim($str) === '') {
-                    continue;
-                }
-
-                $clean = html_entity_decode(strip_tags($str), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-                $clean = trim($clean);
 
                 if ($clean === '') {
                     continue;
                 }
 
-                $label       = ($meta && !empty($meta->label))
+                $label = ($meta && !empty($meta->label))
                     ? html_entity_decode($meta->label, ENT_QUOTES | ENT_HTML5, 'UTF-8')
                     : $fieldName;
-                $colValues[] = ['label' => $label, 'value' => $clean];
+
+                // Mark labels like "field23" as generic so they can be hidden.
+                $isGeneric = (bool) preg_match('/^field\d+$/', $label);
+
+                $colValues[] = ['label' => $label, 'value' => $clean, 'isGeneric' => $isGeneric];
             }
 
             if (empty($colValues)) {
@@ -633,7 +628,11 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             } else {
                 // Three or more columns → "**Label:** value" per column.
                 foreach ($colValues as $col) {
-                    $out .= '**' . $col['label'] . ':** ' . $col['value'] . "\n";
+                    if ($col['isGeneric'] ?? false) {
+                        $out .= $col['value'] . "\n";
+                    } else {
+                        $out .= '**' . $col['label'] . ':** ' . $col['value'] . "\n";
+                    }
                 }
                 $out .= "\n";
             }
@@ -808,7 +807,17 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $fm .= "---\n\n";
 
         // ---- Body ----
-        $body = '# ' . $title . "\n\n" . $this->htmlToMarkdown($article->text ?? '');
+        $body = '# ' . $title . "\n\n";
+
+        if ($this->params->get('show_images', 1)) {
+            $images = json_decode($article->images ?? '{}', false);
+            $mainImage = !empty($images->image_fulltext) ? $images->image_fulltext : ($images->image_intro ?? '');
+            if ($mainImage !== '') {
+                $body .= '![' . addslashes($title) . '](' . $this->cleanImageUrl($mainImage, $baseUrl) . ")\n\n";
+            }
+        }
+
+        $body .= $this->htmlToMarkdown($article->text ?? '');
 
         // Custom fields as readable section at the end.
         if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
@@ -1050,6 +1059,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $src   = $node->getAttribute('src');
                 $alt   = $node->getAttribute('alt');
                 $title = $node->getAttribute('title');
+                $src   = $this->cleanImageUrl($src, Uri::root());
                 $md    = '![' . $alt . '](' . $src;
                 if ($title !== '') $md .= ' "' . str_replace('"', '\\"', $title) . '"';
                 return $md . ')';
