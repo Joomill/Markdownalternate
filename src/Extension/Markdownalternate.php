@@ -171,6 +171,11 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $mdUrl   = rtrim($current, '/') . '.md';
 
         $doc = $app->getDocument();
+
+        if (!($doc instanceof \Joomla\CMS\Document\HtmlDocument)) {
+            return;
+        }
+
         $doc->addHeadLink($mdUrl, 'alternate', 'rel', ['type' => 'text/markdown']);
     }
 
