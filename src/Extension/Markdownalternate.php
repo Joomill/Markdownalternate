@@ -829,7 +829,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             }
         }
 
-        $body .= $this->htmlToMarkdown($article->text ?? '');
+        $body .= $this->htmlToMarkdown($this->stripShortcodes($article->text ?? ''));
 
         // Custom fields as readable section at the end.
         if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
@@ -998,6 +998,12 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // -----------------------------------------------------------------------
     // HTML → Markdown converter
     // -----------------------------------------------------------------------
+
+    private function stripShortcodes(string $text): string
+    {
+        // Remove Joomla plugin shortcodes: {pluginname ...} and {/pluginname}
+        return preg_replace('/\{[a-zA-Z][^}]*\}/', '', $text);
+    }
 
     private function htmlToMarkdown(string $html): string
     {
