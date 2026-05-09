@@ -168,7 +168,14 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         $uri     = Uri::getInstance();
         $current = $uri->toString(['scheme', 'host', 'port', 'path']);
-        $mdUrl   = rtrim($current, '/') . '.md';
+
+        if ($this->params->get('alternate_url_format', 'md') === 'query') {
+            $mdUrl = rtrim($current, '/') . '?output=markdown';
+        } else {
+            $path   = $uri->getPath();
+            $suffix = ($path === '/' || $path === '') ? '/' : '';
+            $mdUrl  = rtrim($current, '/') . $suffix . '.md';
+        }
 
         $doc = $app->getDocument();
 

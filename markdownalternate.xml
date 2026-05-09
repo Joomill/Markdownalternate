@@ -10,7 +10,7 @@
     <license>GNU General Public License version 3 or later</license>
     <creationDate>April 2026</creationDate>
     <copyright>Copyright (c) 2026 Joomill Extensions. All rights reserved.</copyright>
-    <version>1.0.3</version>
+    <version>1.1.0</version>
     <namespace path="src">Joomill\Plugin\System\Markdownalternate</namespace>
 
     <!-- Files -->
@@ -103,6 +103,17 @@
                 >
                     <option value="0">JNO</option>
                     <option value="1">JYES</option>
+                </field>
+                <field
+                    name="alternate_url_format"
+                    type="list"
+                    label="Alternate URL Format"
+                    description="Format of the alternate link URL in the HTML head."
+                    default="md"
+                    showon="show_link:1"
+                >
+                    <option value="md">.md extension (e.g. /page.md)</option>
+                    <option value="query">Query parameter (e.g. /page?output=markdown)</option>
                 </field>
             </fieldset>
         </fields>
