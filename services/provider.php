@@ -28,18 +28,24 @@ return new class implements ServiceProviderInterface {
      */
     public function register(Container $container): void
     {
+        $factory = function (Container $container): PluginInterface {
+            $plugin = new Markdownalternate(
+                $container->get(DispatcherInterface::class),
+                (array) PluginHelper::getPlugin('system', 'markdownalternate')
+            );
+            $plugin->setApplication(Factory::getApplication());
+            $plugin->setDatabase($container->get(DatabaseInterface::class));
+
+            return $plugin;
+        };
+
+        // Lazy plugin loading exists from Joomla 6.1; fall back to a plain
+        // service on Joomla 5 / 6.0 where Container::lazy() is unavailable.
         $container->set(
             PluginInterface::class,
-            function (Container $container) {
-                $plugin = new Markdownalternate(
-                    $container->get(DispatcherInterface::class),
-                    (array) PluginHelper::getPlugin('system', 'markdownalternate')
-                );
-                $plugin->setApplication(Factory::getApplication());
-                $plugin->setDatabase($container->get(DatabaseInterface::class));
-
-                return $plugin;
-            }
+            method_exists($container, 'lazy')
+                ? $container->lazy(Markdownalternate::class, $factory)
+                : $factory
         );
     }
 };
