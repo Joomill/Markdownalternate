@@ -784,6 +784,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $db->quoteName('alias'),
                 $db->quoteName('introtext'),
                 $db->quoteName('images'),
+                $db->quoteName('catid'),
+                $db->quoteName('created'),
+                $db->quoteName('language'),
             ])
             ->from($db->quoteName('#__content'))
             ->where($db->quoteName('catid') . ' = ' . (int) $id)
@@ -1077,7 +1080,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
     /**
      * Run Joomla's onContentPrepare chain on $item->text and return the
-     * prepared text.
+     * prepared text. The input object is not modified.
      *
      * Defensive: any failure (including a missing/incompatible event class
      * on older Joomla 5 releases) falls back to the unprepared text, so a
@@ -1097,18 +1100,23 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         try {
             $this->importContentPlugins();
 
+            // Work on a clone so content plugins cannot mutate the caller's
+            // object, and a plugin throwing mid-chain leaves no half-prepared
+            // state behind — the catch below then returns the original text.
+            $subject = clone $item;
+
             $params = ComponentHelper::getParams('com_content');
 
             $event = new ContentPrepareEvent('onContentPrepare', [
                 'context' => 'com_content.article',
-                'subject' => $item,
+                'subject' => $subject,
                 'params'  => $params,
                 'page'    => 0,
             ]);
 
             $this->getApplication()->getDispatcher()->dispatch('onContentPrepare', $event);
 
-            return (string) ($item->text ?? $text);
+            return (string) ($subject->text ?? $text);
         } catch (\Throwable $e) {
             return $text;
         }
