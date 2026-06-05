@@ -1043,6 +1043,33 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // HTML → Markdown converter
     // -----------------------------------------------------------------------
 
+    // -----------------------------------------------------------------------
+    // Content preparation (onContentPrepare)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Import every content plugin except `fields`, once per request.
+     *
+     * Excluding `fields` stops it from rendering custom fields inline, which
+     * would duplicate the dedicated Custom Fields section.
+     */
+    private function importContentPlugins(): void
+    {
+        if ($this->contentPluginsImported) {
+            return;
+        }
+
+        foreach (PluginHelper::getPlugin('content') as $plugin) {
+            if ($plugin->name === 'fields') {
+                continue;
+            }
+
+            PluginHelper::importPlugin('content', $plugin->name);
+        }
+
+        $this->contentPluginsImported = true;
+    }
+
     private function stripShortcodes(string $text): string
     {
         // Remove Joomla plugin shortcodes: {pluginname ...} and {/pluginname}
