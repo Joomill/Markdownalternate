@@ -136,9 +136,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             ? substr($this->originalPath, 0, -3)
             : $uri->getPath();
 
-        header('Content-Type: text/markdown; charset=utf-8');
-        header('X-Markdown-Tokens: ' . $tokens);
-        header('Link: <' . $baseUrl . $htmlPath . '>; rel="canonical"');
+        $app->setHeader('Content-Type', 'text/markdown; charset=utf-8', true);
+        $app->setHeader('X-Markdown-Tokens', (string) $tokens, true);
+        $app->setHeader('Link', '<' . $baseUrl . $htmlPath . '>; rel="canonical"', true);
+        $app->sendHeaders();
 
         echo $markdown;
         $app->close();
@@ -871,8 +872,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
     private function outputDebugReport(object $article, int $id): void
     {
-        header('Content-Type: text/plain; charset=utf-8');
-        header('X-Robots-Tag: noindex');
+        $app = $this->getApplication();
+        $app->setHeader('Content-Type', 'text/plain; charset=utf-8', true);
+        $app->setHeader('X-Robots-Tag', 'noindex', true);
+        $app->sendHeaders();
 
         $out   = [];
         $out[] = '=== Markdown Alternate — Debug Report v1.4 ===';
