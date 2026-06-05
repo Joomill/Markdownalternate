@@ -1070,6 +1070,45 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $this->contentPluginsImported = true;
     }
 
+    /**
+     * Run Joomla's onContentPrepare chain on $item->text and return the
+     * prepared text.
+     *
+     * Defensive: any failure (including a missing/incompatible event class
+     * on older Joomla 5 releases) falls back to the unprepared text, so a
+     * broken third-party content plugin can never break the .md response.
+     *
+     * @param   object  $item  Article-like object carrying a `text` property.
+     * @return  string         The prepared text.
+     */
+    private function prepareContent(object $item): string
+    {
+        $text = (string) ($item->text ?? '');
+
+        if ($text === '') {
+            return '';
+        }
+
+        try {
+            $this->importContentPlugins();
+
+            $params = ComponentHelper::getParams('com_content');
+
+            $event = new ContentPrepareEvent('onContentPrepare', [
+                'context' => 'com_content.article',
+                'subject' => $item,
+                'params'  => $params,
+                'page'    => 0,
+            ]);
+
+            $this->getApplication()->getDispatcher()->dispatch('onContentPrepare', $event);
+
+            return (string) ($item->text ?? $text);
+        } catch (\Throwable $e) {
+            return $text;
+        }
+    }
+
     private function stripShortcodes(string $text): string
     {
         // Remove Joomla plugin shortcodes: {pluginname ...} and {/pluginname}
