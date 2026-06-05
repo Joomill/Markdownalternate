@@ -51,11 +51,13 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             return;
         }
 
-        if ($app->getInput()->getString('output') === 'markdown') {
+        $input = $app->getInput();
+
+        if ($input->getString('output') === 'markdown') {
             $this->markdownRequested = true;
         }
 
-        $accept = $_SERVER['HTTP_ACCEPT'] ?? '';
+        $accept = $input->server->getString('HTTP_ACCEPT', '');
         if (strpos($accept, 'text/markdown') !== false) {
             $this->markdownRequested = true;
         }
@@ -69,12 +71,13 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
             $uri->setPath(substr($path, 0, -3));
 
-            if (isset($_SERVER['REQUEST_URI'])) {
-                $_SERVER['REQUEST_URI'] = preg_replace(
-                    '/\.md(\?|#|$)/',
-                    '$1',
-                    $_SERVER['REQUEST_URI']
-                );
+            // Strip the .md suffix from REQUEST_URI as well so the SEF router,
+            // which consumes the raw server value, resolves the HTML route.
+            $requestUri = $input->server->getString('REQUEST_URI', '');
+            if ($requestUri !== '') {
+                $cleanUri = preg_replace('/\.md(\?|#|$)/', '$1', $requestUri);
+                $input->server->set('REQUEST_URI', $cleanUri);
+                $_SERVER['REQUEST_URI'] = $cleanUri;
             }
         }
     }
@@ -971,8 +974,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         }
 
         // Final fallback for environments where Uri::root() might be relative.
-        $scheme = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http';
-        $host   = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $server = $this->getApplication()->getInput()->server;
+        $https  = $server->getString('HTTPS', '');
+        $scheme = ($https !== '' && $https !== 'off') ? 'https' : 'http';
+        $host   = $server->getString('HTTP_HOST', 'localhost');
 
         return $scheme . '://' . $host . Uri::root(true);
     }
