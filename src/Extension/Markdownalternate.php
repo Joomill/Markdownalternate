@@ -11,15 +11,17 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 // No direct access.
 defined('_JEXEC') or die;
 
-use Joomla\CMS\Factory;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Router\Route;
 use Joomla\CMS\Uri\Uri;
+use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\Event;
 use Joomla\Event\SubscriberInterface;
 
 final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 {
+    use DatabaseAwareTrait;
+
     /** @var bool */
     private $markdownRequested = false;
 
@@ -225,7 +227,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
      */
     private function loadArticle(int $id): ?object
     {
-        $db = Factory::getDbo();
+        $db = $this->getDatabase();
 
         // --- Main article row ---
         $query = $db->getQuery(true)
@@ -314,7 +316,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
      */
     private function loadCustomFieldsFromDb(int $id): array
     {
-        $db = Factory::getDbo();
+        $db = $this->getDatabase();
 
         $query = $db->getQuery(true)
             ->select([
@@ -541,7 +543,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             return [];
         }
 
-        $db     = Factory::getDbo();
+        $db     = $this->getDatabase();
         $quoted = array_map([$db, 'quote'], $names);
 
         $query = $db->getQuery(true)
@@ -741,7 +743,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
     private function loadCategory(int $id): ?object
     {
-        $db = Factory::getDbo();
+        $db = $this->getDatabase();
 
         // --- Category row ---
         $query = $db->getQuery(true)
@@ -891,7 +893,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         $out[] = '--- Custom fields from #__fields + #__fields_values ---';
         if (empty($article->custom_fields)) {
-            $db    = Factory::getDbo();
+            $db    = $this->getDatabase();
 
             // Check if any fields exist for this context at all.
             $q = $db->getQuery(true)
