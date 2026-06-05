@@ -12,7 +12,6 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 defined('_JEXEC') or die;
 
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\Router\Route;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\Event;
@@ -485,8 +484,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             $parts = [];
 
             foreach ($row as $fieldName => $value) {
-                $meta  = $childMeta[$fieldName] ?? null;
-                $ftype = $meta->type ?? 'text';
+                $meta = $childMeta[$fieldName] ?? null;
 
                 // Handle media/image fields which are stored as JSON/array.
                 if (is_array($value) && isset($value['imagefile'])) {
@@ -621,8 +619,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             // Collect all values from this row, preserving order.
             $colValues = [];
             foreach ($row as $fieldName => $value) {
-                $meta  = isset($childMeta[$fieldName]) ? $childMeta[$fieldName] : null;
-                $ftype = ($meta && isset($meta->type)) ? $meta->type : 'text';
+                $meta = isset($childMeta[$fieldName]) ? $childMeta[$fieldName] : null;
 
                 // Handle media/image fields which are stored as JSON/array.
                 if (is_array($value) && isset($value['imagefile'])) {
