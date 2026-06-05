@@ -1,22 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <extension type="plugin" group="system" method="upgrade">
-    <name>System - Joomill Markdown Alternate</name>
-    <description>Provides Markdown versions of Joomla articles for LLMs and AI agents.
-        Supports .md URL extensions, Accept: text/markdown header, and ?output=markdown parameter.
-        Adds a &lt;link rel="alternate" type="text/markdown"&gt; tag for discoverability.</description>
+    <name>PLG_SYSTEM_MARKDOWNALTERNATE</name>
+    <description>PLG_SYSTEM_MARKDOWNALTERNATE_XML_DESCRIPTION</description>
     <author>Jeroen Moolenschot | Joomill</author>
-    <authorEmail>info@joomill-extensions.com</authorEmail>
+    <authorEmail>info@joomill.nl</authorEmail>
     <authorUrl>https://www.joomill-extensions.com</authorUrl>
     <license>GNU General Public License version 3 or later</license>
     <creationDate>May 2026</creationDate>
-    <copyright>Copyright (c) 2026 Joomill Extensions. All rights reserved.</copyright>
-    <version>1.1.6</version>
+    <copyright>(C) 2026 Joomill Extensions</copyright>
+    <version>1.1.7</version>
     <namespace path="src">Joomill\Plugin\System\Markdownalternate</namespace>
 
     <!-- Files -->
     <files>
         <folder plugin="markdownalternate">services</folder>
         <folder>src</folder>
+        <folder>language</folder>
         <filename>markdownalternate.xml</filename>
     </files>
 
@@ -27,7 +26,7 @@
                 <field
                     name="show_category"
                     type="radio"
-                    label="Show Category"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_CATEGORY_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -37,7 +36,7 @@
                 <field
                     name="show_tags"
                     type="radio"
-                    label="Show Tags"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_TAGS_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -47,7 +46,7 @@
                 <field
                     name="show_author"
                     type="radio"
-                    label="Show Author"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_AUTHOR_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -57,7 +56,7 @@
                 <field
                     name="show_date"
                     type="radio"
-                    label="Show Date"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_DATE_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -67,7 +66,7 @@
                 <field
                     name="show_description"
                     type="radio"
-                    label="Show Description"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_DESCRIPTION_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -77,7 +76,7 @@
                 <field
                     name="show_images"
                     type="radio"
-                    label="Show Images"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_IMAGES_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -87,7 +86,7 @@
                 <field
                     name="show_fields"
                     type="radio"
-                    label="Show Custom Fields"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_FIELDS_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -97,7 +96,7 @@
                 <field
                     name="show_link"
                     type="radio"
-                    label="Show Alternate Link"
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHOW_LINK_LABEL"
                     default="1"
                     layout="joomla.form.field.radio.switcher"
                 >
@@ -107,13 +106,13 @@
                 <field
                     name="alternate_url_format"
                     type="list"
-                    label="Alternate URL Format"
-                    description="Format of the alternate link URL in the HTML head."
+                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_LABEL"
+                    description="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_DESC"
                     default="md"
                     showon="show_link:1"
                 >
-                    <option value="md">.md extension (e.g. /page.md)</option>
-                    <option value="query">Query parameter (e.g. /page?output=markdown)</option>
+                    <option value="md">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_MD</option>
+                    <option value="query">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_QUERY</option>
                 </field>
             </fieldset>
         </fields>
@@ -128,4 +127,7 @@
         <server type="extension" priority="1" name="Joomill Markdown Alternate plugin">
             <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=updater&amp;format=xml&amp;cat=33]]></server>
     </updateservers>
+
+    <!-- Download ID -->
+    <dlid prefix="dlid=" suffix=""/>
 </extension>
