@@ -6,6 +6,8 @@
  *  link: https://www.joomill-extensions.com
  */
 
+declare(strict_types=1);
+
 // No direct access.
 defined('_JEXEC') or die;
 

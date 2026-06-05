@@ -6,6 +6,8 @@
  *  link: https://www.joomill-extensions.com
  */
 
+declare(strict_types=1);
+
 namespace Joomill\Plugin\System\Markdownalternate\Extension;
 
 // No direct access.
@@ -21,11 +23,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 {
     use DatabaseAwareTrait;
 
-    /** @var bool */
-    private $markdownRequested = false;
+    private bool $markdownRequested = false;
 
-    /** @var string */
-    private $originalPath = '';
+    private string $originalPath = '';
 
     // -----------------------------------------------------------------------
     // Event subscription
@@ -798,7 +798,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $fm .= 'title: "' . addslashes($title) . "\"\n";
 
         if ($this->params->get('show_date', 1)) {
-            $fm .= 'date: ' . date('Y-m-d', strtotime($article->created)) . "\n";
+            $fm .= 'date: ' . date('Y-m-d', (int) strtotime($article->created ?? '')) . "\n";
         }
 
         if ($this->params->get('show_description', 1) && !empty($article->metadesc)) {
