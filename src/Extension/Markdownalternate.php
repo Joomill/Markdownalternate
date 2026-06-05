@@ -187,6 +187,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             return;
         }
 
+        // The head layout outputs the href without escaping, so harden this
+        // request-derived URL against attribute injection before adding it.
+        $mdUrl = htmlspecialchars($mdUrl, ENT_QUOTES, 'UTF-8');
+
         $doc->addHeadLink($mdUrl, 'alternate', 'rel', ['type' => 'text/markdown']);
     }
 
