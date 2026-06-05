@@ -191,6 +191,22 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // -----------------------------------------------------------------------
 
     /**
+     * Get the view levels the current visitor is authorised to see.
+     *
+     * Mirrors the access control com_content applies to the HTML view, so the
+     * Markdown rendition never exposes content the user could not otherwise
+     * reach. Falls back to the Public view level (1) when no identity exists.
+     *
+     * @return  int[]
+     */
+    private function getViewLevels(): array
+    {
+        $user = $this->getApplication()->getIdentity();
+
+        return $user ? $user->getAuthorisedViewLevels() : [1];
+    }
+
+    /**
      * Load everything we need via direct DB queries.
      *
      * We deliberately avoid the com_content ArticleModel and FieldsHelper here.
@@ -230,7 +246,8 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 . ' ON ' . $db->quoteName('c.id') . ' = ' . $db->quoteName('a.catid')
             )
             ->where($db->quoteName('a.id')    . ' = ' . (int) $id)
-            ->where($db->quoteName('a.state') . ' = 1');
+            ->where($db->quoteName('a.state') . ' = 1')
+            ->whereIn($db->quoteName('a.access'), $this->getViewLevels());
 
         $db->setQuery($query);
         $article = $db->loadObject();
@@ -309,6 +326,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             ->where($db->quoteName('fv.item_id') . ' = ' . (int) $id)
             ->where($db->quoteName('f.context')  . ' = ' . $db->quote('com_content.article'))
             ->where($db->quoteName('f.state')    . ' = 1')
+            ->whereIn($db->quoteName('f.access'), $this->getViewLevels())
             ->order($db->quoteName('f.ordering') . ' ASC');
 
         $db->setQuery($query);
@@ -730,7 +748,8 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             ->from($db->quoteName('#__categories'))
             ->where($db->quoteName('id')        . ' = ' . (int) $id)
             ->where($db->quoteName('extension') . ' = ' . $db->quote('com_content'))
-            ->where($db->quoteName('published') . ' = 1');
+            ->where($db->quoteName('published') . ' = 1')
+            ->whereIn($db->quoteName('access'), $this->getViewLevels());
 
         $db->setQuery($query);
         $category = $db->loadObject();
@@ -751,6 +770,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             ->from($db->quoteName('#__content'))
             ->where($db->quoteName('catid') . ' = ' . (int) $id)
             ->where($db->quoteName('state') . ' = 1')
+            ->whereIn($db->quoteName('access'), $this->getViewLevels())
             ->order($db->quoteName('ordering') . ' ASC');
 
         $db->setQuery($query);
