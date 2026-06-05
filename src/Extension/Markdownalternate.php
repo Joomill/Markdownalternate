@@ -686,10 +686,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         // ---- YAML Frontmatter ----
         $fm  = "---\n";
-        $fm .= 'title: "' . addslashes($title) . "\"\n";
+        $fm .= 'title: ' . $this->yamlQuote($title) . "\n";
 
         if ($this->params->get('show_description', 1) && !empty($category->metadesc)) {
-            $fm .= 'description: "' . addslashes($category->metadesc) . "\"\n";
+            $fm .= 'description: ' . $this->yamlQuote($category->metadesc) . "\n";
         }
 
         // Category Image
@@ -795,18 +795,18 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         // ---- YAML Frontmatter ----
         $fm  = "---\n";
-        $fm .= 'title: "' . addslashes($title) . "\"\n";
+        $fm .= 'title: ' . $this->yamlQuote($title) . "\n";
 
         if ($this->params->get('show_date', 1)) {
             $fm .= 'date: ' . date('Y-m-d', (int) strtotime($article->created ?? '')) . "\n";
         }
 
         if ($this->params->get('show_description', 1) && !empty($article->metadesc)) {
-            $fm .= 'description: "' . addslashes($article->metadesc) . "\"\n";
+            $fm .= 'description: ' . $this->yamlQuote($article->metadesc) . "\n";
         }
 
         if ($this->params->get('show_author', 1) && $author !== '') {
-            $fm .= 'author: "' . addslashes($author) . "\"\n";
+            $fm .= 'author: ' . $this->yamlQuote($author) . "\n";
         }
 
         // Images.
@@ -828,7 +828,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         if ($this->params->get('show_category', 1) && $catTitle !== '') {
             $catUrl = rtrim($baseUrl, '/') . '/' . ($article->category_alias ?? '') . '.md';
             $fm .= "categories:\n";
-            $fm .= '  - name: "' . addslashes($catTitle) . "\"\n";
+            $fm .= '  - name: ' . $this->yamlQuote($catTitle) . "\n";
             $fm .= '    url: "' . $catUrl . "\"\n";
         }
 
@@ -838,7 +838,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             foreach ($article->tags as $tag) {
                 $tagTitle = html_entity_decode($tag->title, ENT_QUOTES | ENT_HTML5, 'UTF-8');
                 $tagUrl   = rtrim($baseUrl, '/') . '/tags/' . $tag->alias . '.md';
-                $fm .= '  - name: "' . addslashes($tagTitle) . "\"\n";
+                $fm .= '  - name: ' . $this->yamlQuote($tagTitle) . "\n";
                 $fm .= '    url: "' . $tagUrl . "\"\n";
             }
         }
@@ -1013,17 +1013,24 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         return $path;
     }
 
-    private function yamlScalar(string $value): string
+    /**
+     * Escape a value as a safe YAML double-quoted scalar.
+     *
+     * Always double-quotes the value, so newlines, colons and other
+     * YAML-significant characters in a title or description can never break
+     * the frontmatter line.
+     */
+    private function yamlQuote(string $value): string
     {
-        $needsQuoting = ['"', "'", ':', '#', '{', '}', '[', ']', ',', '&', '*', '?', '|', '-', '<', '>', '=', '!', '%', '@', '`', "\n", "\r"];
+        $escaped = strtr($value, [
+            '\\' => '\\\\',
+            '"'  => '\\"',
+            "\n" => '\\n',
+            "\r" => '\\r',
+            "\t" => '\\t',
+        ]);
 
-        foreach ($needsQuoting as $char) {
-            if (strpos($value, $char) !== false) {
-                return '"' . str_replace('"', '\\"', $value) . '"';
-            }
-        }
-
-        return $value !== '' ? $value : '""';
+        return '"' . $escaped . '"';
     }
 
     // -----------------------------------------------------------------------
