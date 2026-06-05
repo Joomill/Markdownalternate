@@ -120,14 +120,14 @@
 
     <!-- Changelog -->
     <changelogurl>
-        <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=changelog&amp;format=xml&amp;cat=33]]></changelogurl>
+        <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=changelog&amp;format=xml&amp;cat=33]]>
+    </changelogurl>
 
     <!-- Updateserver -->
     <updateservers>
         <server type="extension" priority="1" name="Joomill Markdown Alternate plugin">
-            <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=updater&amp;format=xml&amp;cat=33]]></server>
+            <![CDATA[https://www.joomill-extensions.com/index.php?option=com_ochsubscriptions&amp;view=updater&amp;format=xml&amp;cat=33]]>
+        </server>
     </updateservers>
 
-    <!-- Download ID -->
-    <dlid prefix="dlid=" suffix=""/>
 </extension>
