@@ -732,7 +732,12 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
                 // Intro Text
                 if (!empty($article->introtext)) {
-                    $body .= $this->htmlToMarkdown($article->introtext) . "\n\n";
+                    $article->text = $article->introtext;
+                    $intro         = $this->stripShortcodes($this->prepareContent($article));
+
+                    if (trim($intro) !== '') {
+                        $body .= $this->htmlToMarkdown($intro) . "\n\n";
+                    }
                 }
 
                 // Link to full article
