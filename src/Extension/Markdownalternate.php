@@ -13,7 +13,10 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 // No direct access.
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Component\ComponentHelper;
+use Joomla\CMS\Event\Content\ContentPrepareEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
+use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\Event;
@@ -26,6 +29,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     private bool $markdownRequested = false;
 
     private string $originalPath = '';
+
+    /** @var bool  Import content plugins (minus fields) only once per request. */
+    private bool $contentPluginsImported = false;
 
     // -----------------------------------------------------------------------
     // Event subscription
