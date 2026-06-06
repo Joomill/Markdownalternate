@@ -860,7 +860,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             }
         }
 
-        $body .= $this->htmlToMarkdown($this->stripShortcodes($article->text ?? ''));
+        $body .= $this->htmlToMarkdown($this->stripShortcodes($this->prepareContent($article)));
 
         // Custom fields as readable section at the end.
         if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
