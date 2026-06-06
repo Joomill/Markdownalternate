@@ -730,7 +730,12 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
                 // Intro Text
                 if (!empty($article->introtext)) {
-                    $body .= $this->htmlToMarkdown($article->introtext) . "\n\n";
+                    $article->text = $article->introtext;
+                    $intro         = $this->stripShortcodes($this->prepareContent($article));
+
+                    if (trim($intro) !== '') {
+                        $body .= $this->htmlToMarkdown($intro) . "\n\n";
+                    }
                 }
 
                 // Link to full article
@@ -777,6 +782,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $db->quoteName('alias'),
                 $db->quoteName('introtext'),
                 $db->quoteName('images'),
+                $db->quoteName('catid'),
+                $db->quoteName('created'),
+                $db->quoteName('language'),
             ])
             ->from($db->quoteName('#__content'))
             ->where($db->quoteName('catid') . ' = ' . (int) $id)
