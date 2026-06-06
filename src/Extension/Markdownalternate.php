@@ -13,10 +13,7 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 // No direct access.
 defined('_JEXEC') or die;
 
-use Joomla\CMS\Component\ComponentHelper;
-use Joomla\CMS\Event\Content\ContentPrepareEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
-use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
 use Joomla\Event\Event;
@@ -29,9 +26,6 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     private bool $markdownRequested = false;
 
     private string $originalPath = '';
-
-    /** @var bool  Import content plugins (minus fields) only once per request. */
-    private bool $contentPluginsImported = false;
 
     // -----------------------------------------------------------------------
     // Event subscription
@@ -732,12 +726,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
                 // Intro Text
                 if (!empty($article->introtext)) {
-                    $article->text = $article->introtext;
-                    $intro         = $this->stripShortcodes($this->prepareContent($article));
-
-                    if (trim($intro) !== '') {
-                        $body .= $this->htmlToMarkdown($intro) . "\n\n";
-                    }
+                    $body .= $this->htmlToMarkdown($article->introtext) . "\n\n";
                 }
 
                 // Link to full article
@@ -784,9 +773,6 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $db->quoteName('alias'),
                 $db->quoteName('introtext'),
                 $db->quoteName('images'),
-                $db->quoteName('catid'),
-                $db->quoteName('created'),
-                $db->quoteName('language'),
             ])
             ->from($db->quoteName('#__content'))
             ->where($db->quoteName('catid') . ' = ' . (int) $id)
@@ -870,7 +856,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             }
         }
 
-        $body .= $this->htmlToMarkdown($this->stripShortcodes($this->prepareContent($article)));
+        $body .= $this->htmlToMarkdown($this->stripShortcodes($article->text ?? ''));
 
         // Custom fields as readable section at the end.
         if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
@@ -1050,77 +1036,6 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // -----------------------------------------------------------------------
     // HTML → Markdown converter
     // -----------------------------------------------------------------------
-
-    // -----------------------------------------------------------------------
-    // Content preparation (onContentPrepare)
-    // -----------------------------------------------------------------------
-
-    /**
-     * Import every content plugin except `fields`, once per request.
-     *
-     * Excluding `fields` stops it from rendering custom fields inline, which
-     * would duplicate the dedicated Custom Fields section.
-     */
-    private function importContentPlugins(): void
-    {
-        if ($this->contentPluginsImported) {
-            return;
-        }
-
-        foreach (PluginHelper::getPlugin('content') as $plugin) {
-            if ($plugin->name === 'fields') {
-                continue;
-            }
-
-            PluginHelper::importPlugin('content', $plugin->name);
-        }
-
-        $this->contentPluginsImported = true;
-    }
-
-    /**
-     * Run Joomla's onContentPrepare chain on $item->text and return the
-     * prepared text. The input object is not modified.
-     *
-     * Defensive: any failure (including a missing/incompatible event class
-     * on older Joomla 5 releases) falls back to the unprepared text, so a
-     * broken third-party content plugin can never break the .md response.
-     *
-     * @param   object  $item  Article-like object carrying a `text` property.
-     * @return  string         The prepared text.
-     */
-    private function prepareContent(object $item): string
-    {
-        $text = (string) ($item->text ?? '');
-
-        if ($text === '') {
-            return '';
-        }
-
-        try {
-            $this->importContentPlugins();
-
-            // Work on a clone so content plugins cannot mutate the caller's
-            // object, and a plugin throwing mid-chain leaves no half-prepared
-            // state behind — the catch below then returns the original text.
-            $subject = clone $item;
-
-            $params = ComponentHelper::getParams('com_content');
-
-            $event = new ContentPrepareEvent('onContentPrepare', [
-                'context' => 'com_content.article',
-                'subject' => $subject,
-                'params'  => $params,
-                'page'    => 0,
-            ]);
-
-            $this->getApplication()->getDispatcher()->dispatch('onContentPrepare', $event);
-
-            return (string) ($subject->text ?? $text);
-        } catch (\Throwable $e) {
-            return $text;
-        }
-    }
 
     private function stripShortcodes(string $text): string
     {
