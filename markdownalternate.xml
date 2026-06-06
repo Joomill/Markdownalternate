@@ -8,7 +8,7 @@
     <license>GNU General Public License version 3 or later</license>
     <creationDate>June 2026</creationDate>
     <copyright>(C) 2026 Joomill Extensions</copyright>
-    <version>1.2.2</version>
+    <version>1.3.0</version>
     <namespace path="src">Joomill\Plugin\System\Markdownalternate</namespace>
 
     <!-- Files -->
