@@ -1,231 +1,217 @@
-# Render content-prepare shortcodes in Markdown output
+# Render content-prepare shortcodes in Markdown output (v2)
 
-Date: 2026-06-06
-Status: approved (pending spec review)
+Date: 2026-06-06 (v2 revision after the v1 production incident)
+Status: draft (pending spec review)
 Component: `plg_system_markdownalternate`
-Target version: 1.2.1
+Target version: 1.3.0
+
+## Revision history
+
+- **v1 (shipped as 1.2.1, reverted in 1.2.2):** dispatched `onContentPrepare`
+  for **all** content plugins (except `fields`) on the **application
+  dispatcher**, from `onAfterRoute`. This broke production: on a site with a
+  gating content plugin (com_ochsubscriptions), the plugin's
+  `onContentPrepare` handler called `$app->redirect('login')` for anonymous
+  visitors, so every `.md` and `?output=markdown` request 302-redirected to
+  `/login`. A `$app->redirect()` is an `exit`, so the `try/catch` did not
+  catch it. Proven by bisection: the debug path (`loadArticle` only) returned
+  200; the path that ran the dispatch returned 302.
+- **v2 (this document):** make the feature opt-in, run only an explicit
+  allow-list of content plugins, and dispatch on an **isolated dispatcher** so
+  no other registered listener (e.g. a gating plugin) can fire.
 
 ## Problem
 
 Article and category content can contain Joomla content-plugin shortcodes:
-`{loadmodule}`, `{loadposition}`, custom field shortcodes (`{field N}`),
-and third-party shortcodes (sliders, tabs, Sourcerer / RegularLabs, etc.).
-These are normally expanded by the `onContentPrepare` event chain that
-com_content runs through its model.
+`{loadmodule}`, `{loadposition}`, and third-party shortcodes (sliders, tabs,
+etc.). The plugin bypasses the com_content model on purpose (the document is
+not ready during `onAfterRoute`), so it never runs content preparation; today
+`stripShortcodes()` deletes `{plugin ...}` patterns before conversion.
 
-The plugin bypasses the com_content model on purpose (the Joomla document
-is not fully initialised during `onAfterRoute`, so `ArticleModel` /
-`FieldsHelper` fatal with `setMetaData() on null`). As a result it never
-runs content preparation. Today `stripShortcodes()` simply deletes every
-`{plugin ...}` pattern before the HTML→Markdown conversion, and category
-introtexts are not even stripped — raw shortcodes pass through as literal
-text.
+We want a **safe, optional** way to expand selected shortcodes.
 
-We want these shortcodes rendered the proper way instead of dropped.
+## Root cause lesson (drives the v2 design)
+
+`Dispatcher::dispatch('onContentPrepare', ...)` fires **every listener
+registered on that dispatcher**, not just the plugins we imported. Two
+consequences:
+
+1. Running the full content-plugin set lets plugins that redirect, output, or
+   make access decisions hijack the request.
+2. Even importing a curated subset is not enough if we dispatch on the shared
+   application dispatcher, because another extension may have already
+   registered the dangerous plugin there.
+
+Therefore v2 must both (a) limit which plugins we run and (b) dispatch on a
+dispatcher that contains only those plugins.
 
 ## Goal
 
-Run Joomla's real `onContentPrepare` chain on the content before
-converting to Markdown, so shortcodes expand exactly as they would on the
-HTML page, while:
-
-- keeping the existing dedicated `## Custom Fields` section (no duplicate
-  inline field output),
-- never letting a third-party content plugin break the `.md` response,
-- applying the same treatment to single articles and to category
-  introtexts.
+Optionally expand an admin-controlled allow-list of content-plugin shortcodes
+in the Markdown output, with zero risk of an unrelated content plugin firing,
+while keeping the dedicated `## Custom Fields` section and never breaking the
+`.md` response.
 
 ## Non-goals
 
-- No change to access-level filtering, the raw-DB data loaders, or the
-  dedicated custom-fields rendering.
-- No caching layer (acceptable to prepare on each request; see Risks).
-- No attempt to sandbox asset injection — assets added to the document by
-  content plugins are harmless because the response calls `$app->close()`
-  before the render stage.
-
-## Chosen approach
-
-Manually dispatch `onContentPrepare` from the plugin. Rejected
-alternatives:
-
-- **Via the com_content model / `ContentHelper`** — reintroduces the exact
-  document-not-ready fatal the plugin was built to avoid.
-- **Hand-rolling per shortcode** (`ModuleHelper`, `FieldsHelper` directly)
-  — reimplements Joomla, misses all third-party shortcodes, brittle.
+- No change to access filtering, the raw-DB loaders, or the dedicated
+  custom-fields rendering.
+- No automatic running of arbitrary/all content plugins.
+- No caching layer.
 
 ## Design
 
-### New helper: `prepareContent()`
+### New plugin parameters
+
+In `markdownalternate.xml` `<config>` and the language files:
+
+- `render_shortcodes` (radio switcher, default `0` / off). Master opt-in. When
+  off, behaviour is exactly today's `stripShortcodes`-only output.
+- `shortcode_plugins` (text, default `loadmodule,loadposition`, shown only when
+  `render_shortcodes:1`). Comma-separated list of content-plugin **element
+  names** that are allowed to run during preparation.
+
+Defaults mean a fresh install does nothing new until the admin opts in, and
+even then only runs `loadmodule` / `loadposition` (neither of which redirects
+or denies access).
+
+### `prepareContent()` on an isolated dispatcher
 
 ```php
 use Joomla\CMS\Component\ComponentHelper;
 use Joomla\CMS\Event\Content\ContentPrepareEvent;
 use Joomla\CMS\Plugin\PluginHelper;
-use Joomla\Registry\Registry;
-
-/** @var bool  Import content plugins (minus fields) only once per request. */
-private bool $contentPluginsImported = false;
+use Joomla\Event\Dispatcher;
 
 /**
- * Run Joomla's onContentPrepare chain on $item->text and return the
- * prepared text. The fields content plugin is deliberately excluded so it
- * cannot duplicate the dedicated Custom Fields section.
+ * Expand the allow-listed content-plugin shortcodes in $item->text and return
+ * the result. The input object is not modified.
  *
- * Defensive: any failure falls back to the unprepared text, so a broken
- * third-party plugin can never break the Markdown response.
+ * Only the plugins named in the `shortcode_plugins` param run, and they run on
+ * a private dispatcher, so no other content plugin registered on the
+ * application (e.g. an access/redirect plugin) can fire. Returns the original
+ * text unchanged when the feature is off, the allow-list is empty, or anything
+ * throws.
  */
 private function prepareContent(object $item): string
 {
     $text = (string) ($item->text ?? '');
 
-    if ($text === '') {
-        return '';
+    if ($text === '' || !$this->params->get('render_shortcodes', 0)) {
+        return $text;
+    }
+
+    $allowed = array_filter(array_map(
+        'trim',
+        explode(',', (string) $this->params->get('shortcode_plugins', 'loadmodule,loadposition'))
+    ));
+
+    if (empty($allowed)) {
+        return $text;
     }
 
     try {
-        $this->importContentPlugins();
+        // Private dispatcher: only the allow-listed plugins are registered on
+        // it, so dispatch() cannot reach any other content plugin.
+        $dispatcher = new Dispatcher();
 
-        $params = ComponentHelper::getParams('com_content');
+        foreach ($allowed as $name) {
+            PluginHelper::importPlugin('content', $name, true, $dispatcher);
+        }
+
+        $subject = clone $item;
 
         $event = new ContentPrepareEvent('onContentPrepare', [
             'context' => 'com_content.article',
-            'subject' => $item,
-            'params'  => $params,
+            'subject' => $subject,
+            'params'  => ComponentHelper::getParams('com_content'),
             'page'    => 0,
         ]);
 
-        $this->getApplication()->getDispatcher()->dispatch('onContentPrepare', $event);
+        $dispatcher->dispatch('onContentPrepare', $event);
 
-        return (string) ($item->text ?? $text);
+        return (string) ($subject->text ?? $text);
     } catch (\Throwable $e) {
-        // Never let a content plugin break the .md response.
         return $text;
     }
-}
-
-/**
- * Import every content plugin except `fields`, once per request.
- */
-private function importContentPlugins(): void
-{
-    if ($this->contentPluginsImported) {
-        return;
-    }
-
-    foreach (PluginHelper::getPlugin('content') as $plugin) {
-        if ($plugin->name === 'fields') {
-            continue;
-        }
-
-        PluginHelper::importPlugin('content', $plugin->name);
-    }
-
-    $this->contentPluginsImported = true;
 }
 ```
 
 Notes:
 
-- The dispatch target is `$this->getApplication()->getDispatcher()` — the
-  same dispatcher `importPlugin()` registers listeners on, and the one the
-  plugin itself was constructed with.
-- `$item` is passed as the event subject by reference; content plugins
-  modify `$item->text` in place, which we read back after dispatch.
-- `params` are the real com_content component params, so plugins that read
-  them behave as they do on the rendered page.
+- `PluginHelper::importPlugin('content', $name, true, $dispatcher)` registers
+  each allow-listed plugin's listeners on **our** dispatcher (4th argument),
+  not the application's. `$checkEnabled = true` still skips disabled plugins.
+- Dispatching on `$dispatcher` fires only those plugins. A gating plugin that
+  is not in the allow-list never runs, even if it is registered on the
+  application dispatcher — this is the concrete fix for the v1 incident.
+- The `fields` plugin is simply absent from the default allow-list, so the
+  dedicated Custom Fields section is never duplicated. No special-casing
+  needed. (If an admin adds `fields`, inline duplication is their choice.)
+- `clone $item` keeps the helper pure (no caller mutation, no half-prepared
+  state on throw), as established in the v1 review.
 
 ### Pipeline integration
 
-Order matters: **prepare → HTML→Markdown → strip leftovers.**
+Unchanged from v1, order **prepare → stripShortcodes → htmlToMarkdown**:
 
-Article body (`buildMarkdownResponse`):
+- Article body (`buildMarkdownResponse`):
+  `htmlToMarkdown(stripShortcodes(prepareContent($article)))`.
+- Category introtexts (`buildCategoryMarkdownResponse`): set
+  `$article->text = $article->introtext`, then the same wrapping with an
+  empty-string guard.
 
-```php
-$body .= $this->htmlToMarkdown(
-    $this->stripShortcodes($this->prepareContent($article))
-);
-```
+With the feature off (default), `prepareContent()` returns the text untouched,
+so the only effect is the existing `stripShortcodes()` pass — i.e. no
+behaviour change for current installs.
 
-`$article` already carries `id`, `catid`, `created` and `text`
-(introtext + fulltext), which satisfies plugins that read those fields.
+`stripShortcodes()` stays as the final pass to remove any shortcode that no
+allow-listed plugin expanded.
 
-Category introtexts (`buildCategoryMarkdownResponse`), per article in the
-loop:
+### Category article query
 
-```php
-$article->text = $article->introtext;          // give the plugin a ->text
-$intro = $this->stripShortcodes($this->prepareContent($article));
-
-if (trim($intro) !== '') {
-    $body .= $this->htmlToMarkdown($intro) . "\n\n";
-}
-```
-
-`stripShortcodes()` is kept as a final pass: it removes any shortcode that
-was NOT expanded (plugin disabled, uninstalled, or unknown), so no raw
-`{...}` leaks into the Markdown.
-
-### Fields suppression
-
-`importContentPlugins()` imports each content plugin by name except
-`fields`. Because content plugins are not yet imported at `onAfterRoute`,
-skipping `fields` means it never registers a listener and therefore never
-renders fields inline. The dedicated `## Custom Fields` section (built from
-`loadCustomFieldsFromDb()`) stays the single source of field output and
-keeps covering fields whose Automatic Display is set to "no".
-
-Edge case: if another system plugin earlier in the request already did a
-full `PluginHelper::importPlugin('content')`, `fields` would already be
-registered and could render inline, causing duplication. This is rare;
-documented as a known limitation rather than worked around (working around
-it would mean deregistering a listener, which is fragile).
-
-### `stripShortcodes()`
-
-Unchanged. Still `preg_replace('/\{[a-zA-Z][^}]*\}/', '', $text)`. Known
-pre-existing caveat: it can eat legitimate `{...}` in body text (e.g. code
-samples). Out of scope for this change.
+`loadCategory()` selects `catid`, `created`, `language` in addition to the
+existing columns, so allow-listed plugins on the introtext path see the same
+fields as the single-article path. (These were added in v1; re-add them.)
 
 ## Error handling
 
-- All preparation is wrapped in `try/catch (\Throwable)`. On any error the
-  helper returns the original (unprepared) text, which then still goes
-  through `stripShortcodes()` + `htmlToMarkdown()`. The response degrades to
-  today's behaviour rather than failing.
-- This also covers any environment where `ContentPrepareEvent` is missing
-  or behaves differently (older Joomla 5 point releases).
+- Feature off, empty allow-list, or empty text → return the original text.
+- `try/catch (\Throwable)` → return the original text on any exception.
+- A redirect cannot occur with the default allow-list (`loadmodule` /
+  `loadposition` do not redirect). If an admin allow-lists a plugin that does
+  redirect, that is an explicit, documented choice.
 
 ## Risks and trade-offs
 
-- **Performance:** `onContentPrepare` now fires once per article body and
-  once per category introtext. Category pages with many articles each using
-  `{loadmodule}` will do more work. Acceptable; import is done once per
-  request via the guard, and the `.md` endpoint is not a hot path.
-- **Module noise:** `{loadmodule}`/`{loadposition}` pull full module HTML
-  into the Markdown. `htmlToMarkdown()` already strips `script`/`style`/
-  `iframe`/form elements, but menus/banners may still appear as content.
-  This was accepted when choosing the full chain.
-- **Asset injection:** harmless — `$app->close()` runs before render.
+- **Admin can still allow-list a bad plugin.** Mitigated by: opt-in default
+  off, a safe default list, and documentation. We do not try to detect
+  redirecting plugins.
+- **Performance:** preparation runs only when opted in, and only the
+  allow-listed plugins run, on a throwaway dispatcher per call. Acceptable;
+  building the dispatcher is cheap.
+- **Module noise:** `{loadmodule}` / `{loadposition}` pull module HTML into the
+  Markdown; `htmlToMarkdown()` strips script/style/iframe/form. Accepted.
 
 ## Testing
 
-No automated harness exists (documented in CLAUDE.md). Manual verification
-on a Joomla 6 site:
+No automated harness (see `CLAUDE.md`). `php -l` per change. Manual checklist on
+a Joomla 6 site, including the exact regression that caught v1:
 
-1. Article with `{loadmodule mod_menu,...}` → module renders as Markdown,
-   no literal `{loadmodule}` remains.
-2. Article with a third-party shortcode (e.g. a tabs plugin) → expanded.
-3. Article with custom fields set to Automatic Display = above/below →
-   fields appear **once**, only in the `## Custom Fields` section.
-4. Article with a field set to Automatic Display = no → still present in
-   the `## Custom Fields` section.
-5. Article whose shortcode plugin is disabled → shortcode stripped, no raw
-   `{...}`, response still 200.
-6. Category page whose introtexts contain shortcodes → expanded per
-   article.
-7. `php -l` clean on the changed file.
+1. Feature **off** (default): `.md` and `?output=markdown` return **200**
+   Markdown; behaviour identical to 1.2.2. **This is the v1 regression guard.**
+2. Feature **on**, default allow-list, article with `{loadmodule ...}` /
+   `{loadposition ...}` → module renders as Markdown; no literal shortcode
+   left; response still **200** (no `/login` redirect).
+3. Feature **on**, on a site with a gating content plugin NOT in the allow-list
+   → `.md` still returns **200** (the gating plugin must not fire).
+4. Custom fields appear **once**, only in the `## Custom Fields` section.
+5. Feature **on**, allow-list emptied → returns un-prepared text, **200**.
+6. Category introtexts with allow-listed shortcodes → expanded per article.
+7. `php -l` clean; manifest `XML OK`.
+
+Check #1 and #3 are the regression guards for the production incident.
 
 ## Versioning
 
-Bump `<version>` to 1.2.1.
+Bump `<version>` to 1.3.0 (new, opt-in feature).
