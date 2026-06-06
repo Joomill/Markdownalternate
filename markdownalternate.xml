@@ -8,7 +8,7 @@
     <license>GNU General Public License version 3 or later</license>
     <creationDate>June 2026</creationDate>
     <copyright>(C) 2026 Joomill Extensions</copyright>
-    <version>1.3.0</version>
+    <version>1.2.0</version>
     <namespace path="src">Joomill\Plugin\System\Markdownalternate</namespace>
 
     <!-- Files -->
@@ -114,25 +114,6 @@
                     <option value="md">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_MD</option>
                     <option value="query">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_QUERY</option>
                 </field>
-                <field
-                    name="render_shortcodes"
-                    type="radio"
-                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_RENDER_SHORTCODES_LABEL"
-                    description="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_RENDER_SHORTCODES_DESC"
-                    default="0"
-                    layout="joomla.form.field.radio.switcher"
-                >
-                    <option value="0">JNO</option>
-                    <option value="1">JYES</option>
-                </field>
-                <field
-                    name="shortcode_plugins"
-                    type="text"
-                    label="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHORTCODE_PLUGINS_LABEL"
-                    description="PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_SHORTCODE_PLUGINS_DESC"
-                    default="loadmodule,loadposition"
-                    showon="render_shortcodes:1"
-                />
             </fieldset>
         </fields>
     </config>
