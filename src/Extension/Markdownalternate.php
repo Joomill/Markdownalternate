@@ -13,9 +13,13 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 // No direct access.
 defined('_JEXEC') or die;
 
+use Joomla\CMS\Component\ComponentHelper;
+use Joomla\CMS\Event\Content\ContentPrepareEvent;
 use Joomla\CMS\Plugin\CMSPlugin;
+use Joomla\CMS\Plugin\PluginHelper;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
+use Joomla\Event\Dispatcher;
 use Joomla\Event\Event;
 use Joomla\Event\SubscriberInterface;
 
@@ -1036,6 +1040,66 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
     // -----------------------------------------------------------------------
     // HTML → Markdown converter
     // -----------------------------------------------------------------------
+
+    // -----------------------------------------------------------------------
+    // Content preparation (onContentPrepare, opt-in, allow-listed)
+    // -----------------------------------------------------------------------
+
+    /**
+     * Expand the allow-listed content-plugin shortcodes in $item->text and
+     * return the result. The input object is not modified.
+     *
+     * Only the plugins named in the `shortcode_plugins` param run, and they run
+     * on a private dispatcher, so no other content plugin registered on the
+     * application (e.g. an access/redirect plugin) can fire. Returns the
+     * original text unchanged when the feature is off, the allow-list is empty,
+     * or anything throws.
+     *
+     * @param   object  $item  Article-like object carrying a `text` property.
+     * @return  string         The prepared text.
+     */
+    private function prepareContent(object $item): string
+    {
+        $text = (string) ($item->text ?? '');
+
+        if ($text === '' || !$this->params->get('render_shortcodes', 0)) {
+            return $text;
+        }
+
+        $allowed = array_filter(array_map(
+            'trim',
+            explode(',', (string) $this->params->get('shortcode_plugins', 'loadmodule,loadposition'))
+        ));
+
+        if (empty($allowed)) {
+            return $text;
+        }
+
+        try {
+            // Private dispatcher: only the allow-listed plugins are registered
+            // on it, so dispatch() cannot reach any other content plugin.
+            $dispatcher = new Dispatcher();
+
+            foreach ($allowed as $name) {
+                PluginHelper::importPlugin('content', $name, true, $dispatcher);
+            }
+
+            $subject = clone $item;
+
+            $event = new ContentPrepareEvent('onContentPrepare', [
+                'context' => 'com_content.article',
+                'subject' => $subject,
+                'params'  => ComponentHelper::getParams('com_content'),
+                'page'    => 0,
+            ]);
+
+            $dispatcher->dispatch('onContentPrepare', $event);
+
+            return (string) ($subject->text ?? $text);
+        } catch (\Throwable $e) {
+            return $text;
+        }
+    }
 
     private function stripShortcodes(string $text): string
     {
