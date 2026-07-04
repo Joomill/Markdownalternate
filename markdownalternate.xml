@@ -118,6 +118,13 @@
                     <option value="md">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_MD</option>
                     <option value="query">PLG_SYSTEM_MARKDOWNALTERNATE_FIELD_ALTERNATE_URL_FORMAT_OPTION_QUERY</option>
                 </field>
+
+                <!-- Cross-sell: Joomill LLMs.txt Generator -->
+                <field
+                    name="llmstxtpromo"
+                    type="note"
+                    description="PLG_SYSTEM_MARKDOWNALTERNATE_LLMSTXTPROMO_DESC"
+                />
             </fieldset>
         </fields>
     </config>
