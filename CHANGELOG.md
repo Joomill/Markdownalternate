@@ -2,6 +2,9 @@
 
 All notable changes to the Extension are documented in this file.
 
+## [1.3.1] - 08/07/2026
+- Addition: Downloads from the Joomill update server now include diagnostic request headers with site and environment information
+
 ## [1.3.0] - 04/07/2026
 - Addition: help buttons now link to the Joomill documentation page
 - Addition: Support Plugin lazy loading for PHP >= 8.4: Added a possibility to load plugin class on demand (lazy loading) when the event dispatched. For servers with PHP version >= 8.4.
