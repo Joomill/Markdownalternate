@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package     Joomill Markdown Alternate plugin - Build script
  * @author      Jeroen Moolenschot | Joomill
@@ -24,6 +25,7 @@
  *   - requires PHP CLI with the zip extension (extension=zip in php.ini)
  */
 
+// phpcs:disable PSR1.Files.SideEffects -- standalone CLI build script, executing logic is its purpose
 // ---------------------------------------------------------------------------
 // Configuration (per repo) - the engine below is identical in every repo.
 // ---------------------------------------------------------------------------
@@ -104,9 +106,11 @@ foreach ($config['extensions'] as $extension) {
         continue;
     }
 
-    if ($filter !== null
+    if (
+        $filter !== null
         && strpos(strtolower(basename($dirRel)), $filter) === false
-        && strpos(strtolower($name), $filter) === false) {
+        && strpos(strtolower($name), $filter) === false
+    ) {
         continue;
     }
 
@@ -308,10 +312,12 @@ function zip_dir(string $dir, string $zipPath, array $excludes, ?array $allowedZ
             return false;
         }
 
-        if ($allowedZips !== null
+        if (
+            $allowedZips !== null
             && !$current->isDir()
             && strtolower(substr($relative, -4)) === '.zip'
-            && !in_array($relative, $allowedZips, true)) {
+            && !in_array($relative, $allowedZips, true)
+        ) {
             return false;
         }
 

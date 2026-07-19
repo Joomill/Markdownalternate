@@ -13,7 +13,9 @@ declare(strict_types=1);
 namespace Joomill\Plugin\System\Markdownalternate\Extension;
 
 // No direct access.
+// phpcs:disable PSR1.Files.SideEffects
 defined('_JEXEC') or die;
+// phpcs:enable PSR1.Files.SideEffects
 
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Uri\Uri;
@@ -243,7 +245,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 $db->quoteName('a.catid'),
                 $db->quoteName('a.metadesc'),
                 // Model returns author as "author", not "author_name"
-                $db->quoteName('u.name',  'author'),
+                $db->quoteName('u.name', 'author'),
                 $db->quoteName('c.title', 'category_title'),
                 $db->quoteName('c.alias', 'category_alias'),
             ])
@@ -405,7 +407,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
             $keys   = json_decode($rawvalue, true);
             $keys   = is_array($keys) ? $keys : [$rawvalue];
-            $labels = array_map(static function ($k) use ($map) { return isset($map[$k]) ? $map[$k] : $k; }, $keys);
+            $labels = array_map(static function ($k) use ($map) {
+                return isset($map[$k]) ? $map[$k] : $k;
+            }, $keys);
 
             return implode(', ', array_filter($labels));
         }
@@ -464,7 +468,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         // If rows are not arrays themselves, treat rawvalue as a flat list.
         if (!is_array($rows[0] ?? null)) {
             return implode(', ', array_map(
-                static function ($v) { return html_entity_decode(strip_tags((string) $v), ENT_QUOTES | ENT_HTML5, 'UTF-8'); },
+                static function ($v) {
+                    return html_entity_decode(strip_tags((string) $v), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                },
                 $rows
             ));
         }
@@ -1097,24 +1103,34 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $children = $this->convertChildren($node);
 
         switch ($tag) {
-            case 'h1': return "\n# "      . trim($children) . "\n\n";
-            case 'h2': return "\n## "     . trim($children) . "\n\n";
-            case 'h3': return "\n### "    . trim($children) . "\n\n";
-            case 'h4': return "\n#### "   . trim($children) . "\n\n";
-            case 'h5': return "\n##### "  . trim($children) . "\n\n";
-            case 'h6': return "\n###### " . trim($children) . "\n\n";
+            case 'h1':
+                return "\n# "      . trim($children) . "\n\n";
+            case 'h2':
+                return "\n## "     . trim($children) . "\n\n";
+            case 'h3':
+                return "\n### "    . trim($children) . "\n\n";
+            case 'h4':
+                return "\n#### "   . trim($children) . "\n\n";
+            case 'h5':
+                return "\n##### "  . trim($children) . "\n\n";
+            case 'h6':
+                return "\n###### " . trim($children) . "\n\n";
 
             case 'p':
                 $inner = trim($children);
                 return $inner !== '' ? $inner . "\n\n" : '';
 
-            case 'br': return "  \n";
-            case 'hr': return "\n---\n\n";
+            case 'br':
+                return "  \n";
+            case 'hr':
+                return "\n---\n\n";
 
             case 'blockquote':
                 $inner  = trim($children);
                 $lines  = explode("\n", $inner);
-                $quoted = implode("\n", array_map(static function ($l) { return '> ' . $l; }, $lines));
+                $quoted = implode("\n", array_map(static function ($l) {
+                    return '> ' . $l;
+                }, $lines));
                 return "\n" . $quoted . "\n\n";
 
             case 'pre':
@@ -1164,11 +1180,15 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
                 }
                 return $md . ')';
 
-            case 'ul': return "\n" . $this->convertList($node, false) . "\n";
-            case 'ol': return "\n" . $this->convertList($node, true)  . "\n";
-            case 'li': return trim($children) . "\n";
+            case 'ul':
+                return "\n" . $this->convertList($node, false) . "\n";
+            case 'ol':
+                return "\n" . $this->convertList($node, true)  . "\n";
+            case 'li':
+                return trim($children) . "\n";
 
-            case 'table':   return "\n" . $this->convertTable($node) . "\n";
+            case 'table':
+                return "\n" . $this->convertTable($node) . "\n";
             case 'thead':
             case 'tbody':
             case 'tfoot':
@@ -1273,7 +1293,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $rows    = [];
         $allRows = $table->getElementsByTagName('tr');
 
-        if ($allRows->length === 0) return '';
+        if ($allRows->length === 0) {
+            return '';
+        }
 
         $firstRow = $allRows->item(0);
         $isHeader = false;
@@ -1291,7 +1313,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         if ($isHeader) {
             foreach ($firstRow->childNodes as $cell) {
-                if ($cell->nodeType !== XML_ELEMENT_NODE) continue;
+                if ($cell->nodeType !== XML_ELEMENT_NODE) {
+                    continue;
+                }
                 $headers[] = trim($this->convertChildren($cell));
             }
             for ($i = 1; $i < $allRows->length; $i++) {
@@ -1305,14 +1329,18 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
             $headers = array_fill(0, $cols, '');
         }
 
-        if (empty($headers) && empty($rows)) return '';
+        if (empty($headers) && empty($rows)) {
+            return '';
+        }
 
         $colCount  = count($headers);
         $separator = array_fill(0, $colCount, '---');
         $lines     = ['| ' . implode(' | ', $headers) . ' |', '| ' . implode(' | ', $separator) . ' |'];
 
         foreach ($rows as $row) {
-            while (count($row) < $colCount) $row[] = '';
+            while (count($row) < $colCount) {
+                $row[] = '';
+            }
             $row     = array_slice($row, 0, $colCount);
             $lines[] = '| ' . implode(' | ', $row) . ' |';
         }
@@ -1325,7 +1353,9 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $cells = [];
 
         foreach ($row->childNodes as $cell) {
-            if ($cell->nodeType !== XML_ELEMENT_NODE) continue;
+            if ($cell->nodeType !== XML_ELEMENT_NODE) {
+                continue;
+            }
             $tag = strtolower($cell->nodeName);
             if ($tag === 'td' || $tag === 'th') {
                 $cells[] = str_replace('|', '\\|', trim($this->convertChildren($cell)));

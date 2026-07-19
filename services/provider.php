@@ -23,7 +23,6 @@ use Joomla\Event\DispatcherInterface;
 use Joomill\Plugin\System\Markdownalternate\Extension\Markdownalternate;
 
 return new class implements ServiceProviderInterface {
-
     /**
      * Registers the service provider with a DI container.
      *

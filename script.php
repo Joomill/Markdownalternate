@@ -9,7 +9,9 @@
  */
 
 // No direct access.
+// phpcs:disable PSR1.Files.SideEffects
 defined('_JEXEC') or die;
+// phpcs:enable PSR1.Files.SideEffects
 
 use Joomla\CMS\Factory;
 use Joomla\CMS\Http\HttpFactory;
@@ -28,6 +30,7 @@ use Joomla\Filesystem\File;
  *
  * @since  1.3.0
  */
+// phpcs:ignore PSR1.Classes.ClassDeclaration.MissingNamespace -- Joomla installer script: global class with the manifest-mandated name
 class PlgSystemMarkdownalternateInstallerScript implements InstallerScriptInterface
 {
     /**
@@ -373,7 +376,7 @@ class PlgSystemMarkdownalternateInstallerScript implements InstallerScriptInterf
             Log::add('Markdown Alternate: could not install the Joomill Update Logging plugin: ' . $e->getMessage(), Log::WARNING, 'markdownalternate');
         }
     }
-
 }
 
+// phpcs:disable PSR1.Files.SideEffects -- the returned instance is required for the InstallerScriptInterface path
 return new PlgSystemMarkdownalternateInstallerScript();
