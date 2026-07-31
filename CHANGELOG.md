@@ -3,6 +3,8 @@
 All notable changes to the Extension are documented in this file.
 
 ## 1.3.2 - Unreleased
+- Fix: the debug report available through `?output=markdown&debug=1` no longer prints a hard-coded version number; it now reads the version from the manifest
+- Improvement: the type prefix in the plugin name is now translated in Spanish, French, Italian and Dutch (`Sistema -`, `Système -`, `Sistema -`, `Systeem -`)
 - Improvement: PHP file headers updated to the standard Joomla docblock copyright format; code style only, no functional changes
 - Improvement: full code style pass against the Joomla CMS phpcs ruleset (PSR-12): phpcbf auto-fixes for indentation, line endings, brace placement and whitespace, plus phpcs annotations for deliberate exceptions (`_JEXEC` guards, legacy global class names, legacy API naming). Code style only, no functional changes
 

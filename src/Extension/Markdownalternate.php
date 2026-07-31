@@ -889,7 +889,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $app->sendHeaders();
 
         $out   = [];
-        $out[] = '=== Markdown Alternate — Debug Report v1.4 ===';
+        $out[] = '=== Markdown Alternate — Debug Report v' . $this->getPluginVersion() . ' ===';
         $out[] = 'Article ID : ' . $id;
         $out[] = 'Title      : ' . ($article->title ?? '(empty)');
         $out[] = 'Text length: ' . strlen($article->text ?? '') . ' bytes';
@@ -961,6 +961,30 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         $out[] = '=== End of report ===';
 
         echo implode("\n", $out);
+    }
+
+    /**
+     * Read the version from the manifest so the debug report always reports
+     * the version of the files that are actually installed.
+     */
+    private function getPluginVersion(): string
+    {
+        $manifest = dirname(__DIR__, 2) . '/markdownalternate.xml';
+
+        if (!is_file($manifest)) {
+            return 'unknown';
+        }
+
+        $previous = libxml_use_internal_errors(true);
+        $xml      = simplexml_load_file($manifest);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ($xml === false || !isset($xml->version)) {
+            return 'unknown';
+        }
+
+        return (string) $xml->version;
     }
 
     // -----------------------------------------------------------------------
