@@ -17,6 +17,7 @@ namespace Joomill\Plugin\System\Markdownalternate\Extension;
 defined('_JEXEC') or die;
 // phpcs:enable PSR1.Files.SideEffects
 
+use Joomla\CMS\Language\Text;
 use Joomla\CMS\Plugin\CMSPlugin;
 use Joomla\CMS\Uri\Uri;
 use Joomla\Database\DatabaseAwareTrait;
@@ -107,6 +108,10 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
         if ($option !== 'com_content' || !in_array($view, ['article', 'category']) || $id < 1) {
             return;
         }
+
+        // The Markdown output contains translated strings, so load the language
+        // file here instead of autoloading it on every request.
+        $this->loadLanguage();
 
         if ($view === 'article') {
             $article = $this->loadArticle($id);
@@ -739,7 +744,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
                 // Link to full article
                 $articleUrl = rtrim($baseUrl, '/') . '/' . ($category->alias ?? '') . '/' . ($article->alias ?? '') . '.md';
-                $body .= '[Lees meer...](' . $articleUrl . ")\n\n";
+                $body .= '[' . Text::_('PLG_SYSTEM_MARKDOWNALTERNATE_READ_MORE') . '](' . $articleUrl . ")\n\n";
             }
         }
 
@@ -868,7 +873,7 @@ final class Markdownalternate extends CMSPlugin implements SubscriberInterface
 
         // Custom fields as readable section at the end.
         if ($this->params->get('show_fields', 1) && !empty($article->custom_fields)) {
-            $body .= "\n\n## Custom Fields\n\n";
+            $body .= "\n\n## " . Text::_('PLG_SYSTEM_MARKDOWNALTERNATE_CUSTOM_FIELDS_HEADING') . "\n\n";
             foreach ($article->custom_fields as $field) {
                 $body .= $this->renderFieldAsMarkdown($field);
             }
